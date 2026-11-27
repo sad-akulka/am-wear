@@ -19,6 +19,7 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.WearableListenerService
 import dev.amwear.shared.Playback
 import dev.amwear.shared.PlaybackLink
+import dev.amwear.shared.WatchOptions
 
 class PlaybackAlerts : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
@@ -26,6 +27,12 @@ class PlaybackAlerts : WearableListenerService() {
         val seen = getSharedPreferences("playbackAlerts", MODE_PRIVATE)
         events.forEach { event ->
             val item = event.dataItem
+            if (item.uri.path == WatchOptions.PATH) {
+                if (event.type == DataEvent.TYPE_CHANGED) {
+                    WatchOptions.receive(this, DataMapItem.fromDataItem(item).dataMap)
+                }
+                return@forEach
+            }
             if (item.uri.path != PlaybackLink.STATE_PATH) return@forEach
             val source = item.uri.host ?: return@forEach
             if (event.type == DataEvent.TYPE_DELETED) {

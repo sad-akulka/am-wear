@@ -12,6 +12,7 @@ import android.os.Looper
 import android.text.format.DateFormat
 import android.util.Log
 import android.view.InputDevice
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowInsets
@@ -26,6 +27,7 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import dev.amwear.shared.Playback
 import dev.amwear.shared.PlaybackLink
+import dev.amwear.shared.WatchOptions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.Executors
@@ -53,6 +55,28 @@ class NowPlayingActivity : ComponentActivity() {
     private var forwardDirection = 0f
     private var preview: PlaybackPreview? = null
     private var ambientDetails: AmbientLifecycleObserver.AmbientDetails? = null
+    private var coverTouch = false
+    private val options by lazy { WatchOptions.preferences(this) }
+    private val optionListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        hideIfPaused()
+    }
+    private val taps by lazy {
+        GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(event: MotionEvent) = true
+            override fun onSingleTapConfirmed(event: MotionEvent): Boolean {
+                if (!screen.controlsVisible && options.getBoolean(WatchOptions.TAP, false)) {
+                    send(PlaybackLink.PAUSE)
+                }
+                return true
+            }
+            override fun onDoubleTap(event: MotionEvent): Boolean {
+                if (!screen.controlsVisible && options.getBoolean(WatchOptions.DOUBLE_TAP, false)) {
+                    send(PlaybackLink.NEXT)
+                }
+                return true
+            }
+        })
+    }
 
     private val timeTick = object : Runnable {
         override fun run() {
@@ -117,7 +141,8 @@ class NowPlayingActivity : ComponentActivity() {
         }))
         PlaybackAlerts.setup(this)
         preview = PlaybackPreview.open(this, intent)
-        preview?.show(screen)
+        preview?.show(screen)?.let { playback = it }
+        options.registerOnSharedPreferenceChangeListener(optionListener)
         if (preview == null) PlaybackAlerts.observe(playbackObserver)
         if (preview == null && savedInstanceState == null && intent.action == Intent.ACTION_MAIN) {
             askForAlerts()
@@ -137,6 +162,14 @@ class NowPlayingActivity : ComponentActivity() {
         PlaybackAlerts.dismiss(this)
         if (ambientDetails == null) timeTick.run() else updateTime()
         if (preview != null) return
+        data.getDataItems(android.net.Uri.parse("wear:" + WatchOptions.PATH), DataClient.FILTER_LITERAL)
+            .addOnSuccessListener { items ->
+                try {
+                    items.forEach { WatchOptions.receive(this, DataMapItem.fromDataItem(it).dataMap) }
+                } finally {
+                    items.release()
+                }
+            }
         readState()
         capabilities.addListener(phoneListener, PlaybackLink.PHONE_CAPABILITY)
         capabilities.getCapability(PlaybackLink.PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
@@ -154,6 +187,7 @@ class NowPlayingActivity : ComponentActivity() {
 
     override fun onDestroy() {
         PlaybackAlerts.removeObserver(playbackObserver)
+        options.unregisterOnSharedPreferenceChangeListener(optionListener)
         if (ambientDetails != null) visible = false
         decoder.shutdownNow()
         super.onDestroy()
@@ -196,6 +230,8 @@ class NowPlayingActivity : ComponentActivity() {
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                coverTouch = !screen.controlsVisible && ambientDetails == null &&
+                    (options.getBoolean(WatchOptions.TAP, false) || options.getBoolean(WatchOptions.DOUBLE_TAP, false))
                 downX = event.x
                 downY = event.y
                 swipeHandled = false
@@ -208,6 +244,7 @@ class NowPlayingActivity : ComponentActivity() {
                 if (abs(dy) > threshold && abs(dy) > abs(dx) && (dy < 0) != screen.controlsVisible) {
                     val cancel = MotionEvent.obtain(event)
                     cancel.action = MotionEvent.ACTION_CANCEL
+                    if (coverTouch) taps.onTouchEvent(cancel)
                     super.dispatchTouchEvent(cancel)
                     cancel.recycle()
                     screen.setPage(dy < 0)
@@ -216,6 +253,10 @@ class NowPlayingActivity : ComponentActivity() {
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (swipeHandled) return true
+        }
+        if (coverTouch) {
+            taps.onTouchEvent(event)
+            return true
         }
         return super.dispatchTouchEvent(event)
     }
@@ -267,6 +308,7 @@ class NowPlayingActivity : ComponentActivity() {
     }
 
     private fun showPlayback() {
+        hideIfPaused()
         val sourceReachable = sourceNode in phoneNodes
         screen.setPlayback(playback, sourceReachable || (sourceNode == null && phoneNodes.isNotEmpty()))
         if (sourceReachable) PlaybackAlerts.updateOngoing(this, playback, fromScreen = true)
@@ -307,6 +349,14 @@ class NowPlayingActivity : ComponentActivity() {
         }
     }
 
+    private fun hideIfPaused() {
+        if ((active || ambientDetails != null) && playback.available && playback.paused &&
+            options.getBoolean(WatchOptions.HIDE, false)
+        ) {
+            moveTaskToBack(true)
+        }
+    }
+
     private fun cancelArtworkRequest() {
         if (loadingArtworkId == null) return
         artworkJob++
@@ -332,7 +382,8 @@ class NowPlayingActivity : ComponentActivity() {
     private fun send(path: String) {
         preview?.let {
             it.command(path)
-            it.show(screen)
+            playback = it.show(screen)
+            hideIfPaused()
             return
         }
         val node = sourceNode

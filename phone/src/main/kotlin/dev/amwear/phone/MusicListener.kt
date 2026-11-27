@@ -155,6 +155,7 @@ class MusicListener : NotificationListenerService() {
         val snapshot = Playback(
             available = controller != null,
             playing = playing,
+            paused = state?.state == PlaybackState.STATE_PAUSED,
             title = text(MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE),
             artist = text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
             actions = state?.actions ?: 0L,

@@ -19,6 +19,16 @@ The screenshots use the supplied artwork from Jennie's *Ruby* as a demo for “S
 
 ## Install
 
+The phone companion uses Material You, follows the system light/dark theme and adopts wallpaper colors on supported Android 12+ devices. Its settings include three independent switches, all off by default.
+
+- Tap the full-screen cover to pause playback.
+- Double-tap the cover to skip to the next track.
+- Hide AM Wear when Apple Music confirms that playback is paused.
+
+Settings sync to the watch through Data Layer. Update both APKs to use these features.
+
+<img src="docs/screenshots/phone.png" alt="Material You phone companion with playback gesture settings" width="280">
+
 You'll need an Android 9 or newer phone with Apple Music and a paired Wear OS 3 or newer watch. Both devices need Google Play services.
 
 1. Download the phone and watch APKs from [Releases](https://github.com/sad-akulka/am-wear/releases/latest) and install each APK on its device.

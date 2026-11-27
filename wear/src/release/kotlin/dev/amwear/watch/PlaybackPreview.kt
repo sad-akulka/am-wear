@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 
 internal class PlaybackPreview private constructor() {
-    fun show(screen: PlayerScreen) = Unit
+    fun show(screen: PlayerScreen) = dev.amwear.shared.Playback()
     fun onAmbient(screen: PlayerScreen, isAmbient: () -> Boolean) = Unit
     fun command(path: String) = Unit
 

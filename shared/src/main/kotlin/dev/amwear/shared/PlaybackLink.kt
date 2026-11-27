@@ -23,6 +23,7 @@ object PlaybackLink {
 data class Playback(
     val available: Boolean = false,
     val playing: Boolean = false,
+    val paused: Boolean = false,
     val title: String = "",
     val artist: String = "",
     val actions: Long = 0,
@@ -35,6 +36,7 @@ data class Playback(
     fun request() = PutDataMapRequest.create(PlaybackLink.STATE_PATH).apply {
         dataMap.putBoolean("available", available)
         dataMap.putBoolean("playing", playing)
+        dataMap.putBoolean("paused", paused)
         dataMap.putString("title", title)
         dataMap.putString("artist", artist)
         dataMap.putLong("actions", actions)
@@ -49,6 +51,7 @@ data class Playback(
         fun from(map: DataMap) = Playback(
             available = map.getBoolean("available"),
             playing = map.getBoolean("playing"),
+            paused = map.getBoolean("paused"),
             title = map.getString("title").orEmpty(),
             artist = map.getString("artist").orEmpty(),
             actions = map.getLong("actions"),

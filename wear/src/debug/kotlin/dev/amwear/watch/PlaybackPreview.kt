@@ -38,23 +38,23 @@ internal class PlaybackPreview private constructor(
         }
     }
 
-    fun show(screen: PlayerScreen) {
+    fun show(screen: PlayerScreen): Playback {
         val title = if (original) "Seoul City" else "After Hours"
         val artist = if (original) "Jennie" else "AM Wear · демо"
         val artwork = if (original) cover else secondCover
-        screen.setPlayback(
-            Playback(
+        val state = Playback(
                 available = true,
                 playing = playing,
+                paused = !playing,
                 title = title,
                 artist = artist,
                 actions = PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or
                     PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS,
-            ),
-            phoneReachable = true,
-        )
+            )
+        screen.setPlayback(state, phoneReachable = true)
         screen.setCover(artwork)
         screen.setAmbientTrack(title, artist, artwork)
+        return state
     }
 
     fun onAmbient(screen: PlayerScreen, isAmbient: () -> Boolean) {

@@ -52,10 +52,11 @@ internal class PlayerScreen(
     private val coverPanel = FrameLayout(context)
     private val controlPanel = FrameLayout(context)
     private val titleTypeface = resources.getFont(R.font.outfit_semibold)
-    private val clockTypeface = resources.getFont(R.font.outfit_bold)
+    private val clockTypeface = resources.getFont(R.font.outfit_black)
     private val ambientClock = text(18f).apply {
         typeface = clockTypeface
-        letterSpacing = 0.015f
+        textScaleX = 1.12f
+        letterSpacing = -0.035f
     }
     private val ambientCover = ImageView(context).apply {
         scaleType = ImageView.ScaleType.CENTER_CROP
@@ -84,7 +85,8 @@ internal class PlayerScreen(
     }
     private val coverClock = text(18f).apply {
         typeface = clockTypeface
-        letterSpacing = 0.015f
+        textScaleX = 1.12f
+        letterSpacing = -0.035f
         setShadowLayer(dp(3).toFloat(), 0f, dp(1).toFloat(), 0xc4000000.toInt())
     }
     private val coverTitle = text(16f).apply {
@@ -102,7 +104,8 @@ internal class PlayerScreen(
         addView(coverArtist)
         setOnClickListener { togglePage() }
     }
-    private val controlClock = text(12f).apply { typeface = clockTypeface }
+    private val controlClock = text(12f).apply { typeface = clockTypeface
+        textScaleX = 1.12f }
     private val controlTitle = text(17f).apply { typeface = titleTypeface }
     private val controlArtist = text(12f, "sans-serif", Typeface.BOLD)
     private val previous = button("Предыдущий трек", PlayerIcon.PREVIOUS) { command(PlaybackLink.PREVIOUS) }
@@ -229,7 +232,7 @@ internal class PlayerScreen(
         ambientTitle.visibility = if (showTrack) View.VISIBLE else View.INVISIBLE
         ambientArtist.visibility = ambientTitle.visibility
         val diameter = minOf(viewportWidth, viewportHeight)
-        ambientClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, diameter * 0.092f)
+        ambientClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, diameter * 0.105f)
         place(ambientClock, diameter * 0.62f, dp(27).toFloat(), 0.50f, if (showTrack) 0.105f else 0.50f)
         place(ambientTitle, diameter * 0.83f, dp(25).toFloat(), 0.50f, 0.72f)
         place(ambientArtist, diameter * 0.70f, dp(22).toFloat(), 0.50f, 0.805f)
@@ -364,7 +367,7 @@ internal class PlayerScreen(
     }
 
     private fun placeElements(diameter: Int) {
-        coverClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, diameter * 0.092f)
+        coverClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, diameter * 0.105f)
         place(coverClock, diameter * 0.62f, dp(27).toFloat(), 0.50f, 0.105f)
         place(coverTitle, diameter * 0.83f, dp(25).toFloat(), 0.50f, 0.72f)
         place(coverCredit, diameter * 0.70f, dp(48).toFloat(), 0.50f, 0.805f)
@@ -516,22 +519,36 @@ private class PlayerIcon(private val icon: Int) : Drawable() {
 }
 
 private fun artworkColor(bitmap: Bitmap): Int {
-    val sample = Bitmap.createScaledBitmap(bitmap, 12, 12, true)
-    val pixels = IntArray(144)
-    sample.getPixels(pixels, 0, 12, 0, 0, 12, 12)
-    val buckets = FloatArray(12)
+    val sample = Bitmap.createScaledBitmap(bitmap, 48, 48, true)
+    val pixels = IntArray(48 * 48)
+    sample.getPixels(pixels, 0, 48, 0, 0, 48, 48)
+    val scores = FloatArray(24)
+    val reds = FloatArray(24)
+    val greens = FloatArray(24)
+    val blues = FloatArray(24)
     val hsv = FloatArray(3)
     pixels.forEach { pixel ->
         Color.colorToHSV(pixel, hsv)
-        if (hsv[1] >= 0.15f && hsv[2] >= 0.18f) {
-            buckets[((hsv[0] + 15f) / 30f).toInt() % buckets.size] += hsv[1] * hsv[2]
+        if (hsv[1] > 0.12f && hsv[2] > 0.12f) {
+            val bucket = ((hsv[0] + 7.5f) / 15f).toInt() % scores.size
+            val weight = hsv[1] * hsv[1] * kotlin.math.sqrt(hsv[2])
+            scores[bucket] += weight
+            reds[bucket] += Color.red(pixel) * weight
+            greens[bucket] += Color.green(pixel) * weight
+            blues[bucket] += Color.blue(pixel) * weight
         }
     }
-    val dominant = buckets.indices.maxBy { buckets[it] }
-    return if (buckets[dominant] == 0f) 0xfff4edf4.toInt()
-    else Color.HSVToColor(floatArrayOf(dominant * 30f, 0.28f, 1f))
+    val best = scores.indices.maxBy { scores[it] }
+    val score = scores[best]
+    if (sample !== bitmap) sample.recycle()
+    if (score == 0f) return 0xffe0e0e0.toInt()
+    val source = Color.rgb((reds[best] / score).roundToInt(),
+        (greens[best] / score).roundToInt(), (blues[best] / score).roundToInt())
+    Color.colorToHSV(source, hsv)
+    hsv[1] = (hsv[1] * 0.34f).coerceIn(0.12f, 0.34f)
+    hsv[2] = 0.97f
+    return Color.HSVToColor(hsv)
 }
-
 private fun softenArtwork(bitmap: Bitmap): Bitmap {
     val width = 32
     val height = (bitmap.height * width.toFloat() / bitmap.width).roundToInt().coerceIn(1, 64)
